@@ -1,0 +1,36 @@
+# Task ID: 8
+# Title: Implement Logging and Monitoring System
+# Status: pending
+# Dependencies: 5, 7
+# Priority: medium
+# Description: Create a comprehensive logging and monitoring system to track server performance, connections, and errors.
+# Details:
+1. Set up Winston logger for structured logging:
+   ```javascript
+   const winston = require('winston');
+   
+   const logger = winston.createLogger({
+     level: process.env.LOG_LEVEL || 'info',
+     format: winston.format.combine(
+       winston.format.timestamp(),
+       winston.format.json()
+     ),
+     defaultMeta: { service: 'websocket-passthrough' },
+     transports: [
+       new winston.transports.Console(),
+       new winston.transports.File({ filename: 'error.log', level: 'error' }),
+       new winston.transports.File({ filename: 'combined.log' })
+     ]
+   });
+   ```
+2. Implement performance metrics collection:
+   - Connection count
+   - Message throughput
+   - Response times
+   - Error rates
+3. Create a monitoring dashboard endpoint
+4. Implement log rotation and archiving
+5. Add correlation IDs for request tracking
+
+# Test Strategy:
+Verify logs are correctly generated for various events and errors. Test log rotation with simulated high volume. Test performance metrics collection and ensure they accurately reflect system state.

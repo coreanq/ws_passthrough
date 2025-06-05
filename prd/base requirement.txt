@@ -1,0 +1,11 @@
+# 제품 요구사항 문서 (PRD)
+
+* node.js 언어 사용 
+* WebSocket 서버 프로그램
+* 1:1 passthrough 방식으로 구현 
+* /config path 에서 passthrough 할 ip address, port 설정
+* /data path 에서 들어온 passthrough 설정
+* /event path 에서 각종 이벤트 알림 
+* 웹소켓이나, target ip 연결이 끊긴 경우 실패 처리 및 웹소켓 클라이언트한테 이벤트 알림 
+* 웹소켓에서 받은 데이터는 통째로 보낸다
+* 서버에서 버퍼링을 해서 target IP 와 통신한다

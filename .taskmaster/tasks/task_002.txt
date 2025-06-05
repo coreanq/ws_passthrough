@@ -1,0 +1,44 @@
+# Task ID: 2
+# Title: Implement Configuration Management API
+# Status: in-progress
+# Dependencies: 1
+# Priority: high
+# Description: Create the /config endpoint to manage passthrough IP address and port settings with real-time application.
+# Details:
+1. Create an Express.js server to handle HTTP requests
+2. Implement the `/config` endpoint with GET and POST methods:
+   - GET: Return current configuration
+   - POST: Update configuration
+3. Create a configuration service to manage settings:
+   ```javascript
+   class ConfigService {
+     constructor() {
+       this.targetIp = process.env.DEFAULT_TARGET_IP || '127.0.0.1';
+       this.targetPort = process.env.DEFAULT_TARGET_PORT || 8080;
+       this.listeners = [];
+     }
+     
+     getConfig() {
+       return { targetIp: this.targetIp, targetPort: this.targetPort };
+     }
+     
+     updateConfig(newConfig) {
+       this.targetIp = newConfig.targetIp || this.targetIp;
+       this.targetPort = newConfig.targetPort || this.targetPort;
+       this.notifyListeners();
+       return this.getConfig();
+     }
+     
+     addChangeListener(listener) {
+       this.listeners.push(listener);
+     }
+     
+     notifyListeners() {
+       this.listeners.forEach(listener => listener(this.getConfig()));
+     }
+   }
+   ```
+4. Implement configuration validation middleware
+
+# Test Strategy:
+Unit test the ConfigService class to ensure it properly stores and updates configuration. Test the API endpoints with various valid and invalid inputs. Verify that configuration changes are applied in real-time.

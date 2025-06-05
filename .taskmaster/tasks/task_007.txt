@@ -1,0 +1,62 @@
+# Task ID: 7
+# Title: Implement Event Notification System
+# Status: pending
+# Dependencies: 3, 6
+# Priority: medium
+# Description: Create the /event WebSocket endpoint to provide real-time event notifications about connection status and data transfer.
+# Details:
+1. Set up a separate WebSocket server for event notifications:
+   ```javascript
+   const eventWss = new WebSocket.Server({ 
+     server,
+     path: '/event'
+   });
+   
+   // Create event emitter
+   const EventEmitter = require('events');
+   const eventEmitter = new EventEmitter();
+   
+   // Track connected event clients
+   const eventClients = new Set();
+   
+   eventWss.on('connection', (ws) => {
+     eventClients.add(ws);
+     
+     ws.on('close', () => {
+       eventClients.delete(ws);
+     });
+   });
+   
+   // Broadcast events to all connected clients
+   function broadcastEvent(eventType, data) {
+     const eventMessage = JSON.stringify({
+       type: eventType,
+       timestamp: Date.now(),
+       data
+     });
+     
+     for (const client of eventClients) {
+       if (client.readyState === WebSocket.OPEN) {
+         client.send(eventMessage);
+       }
+     }
+   }
+   
+   // Register event listeners
+   const events = [
+     'clientConnected', 'clientDisconnected', 'targetConnected', 'targetDisconnected',
+     'targetError', 'dataReceived', 'dataSent', 'reconnecting', 'reconnectFailed'
+   ];
+   
+   events.forEach(eventType => {
+     eventEmitter.on(eventType, (data) => {
+       broadcastEvent(eventType, data);
+     });
+   });
+   ```
+2. Implement event filtering options
+3. Add event persistence for history retrieval
+4. Implement event throttling for high-frequency events
+
+# Test Strategy:
+Test the event notification system by connecting multiple clients and verifying they receive the correct events. Test with high event frequency to ensure throttling works correctly. Verify event filtering works as expected.

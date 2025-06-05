@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 패스스루 테스트</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        
+        .status {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .connecting {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .control-panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background-color: #0069d9;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        input[type="text"] {
+            padding: 8px;
+            width: 70%;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        
+        .log-container {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ced4da;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .log-entry.sent {
+            color: #0066cc;
+        }
+        
+        .log-entry.received {
+            color: #28a745;
+        }
+        
+        .log-entry.error {
+            color: #dc3545;
+        }
+        
+        .log-entry.info {
+            color: #17a2b8;
+        }
+        
+        /* Dark Mode 지원 */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #121212;
+                color: #e0e0e0;
+            }
+            
+            .container {
+                background-color: #1e1e1e;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            }
+            
+            h1 {
+                color: #bb86fc;
+            }
+            
+            .status.connected {
+                background-color: #1b3a27;
+                color: #4caf50;
+            }
+            
+            .status.disconnected {
+                background-color: #3b1c24;
+                color: #f48fb1;
+            }
+            
+            .status.connecting {
+                background-color: #332d19;
+                color: #ffeb3b;
+            }
+            
+            .control-panel {
+                background-color: #2d2d2d;
+            }
+            
+            button {
+                background-color: #6200ee;
+            }
+            
+            button:hover {
+                background-color: #7c4dff;
+            }
+            
+            input[type="text"] {
+                background-color: #2d2d2d;
+                border-color: #444;
+                color: #e0e0e0;
+            }
+            
+            .log-container {
+                background-color: #2d2d2d;
+                border-color: #444;
+            }
+            
+            .log-entry {
+                border-bottom-color: #444;
+            }
+            
+            .log-entry.sent {
+                color: #64b5f6;
+            }
+            
+            .log-entry.received {
+                color: #81c784;
+            }
+            
+            .log-entry.error {
+                color: #e57373;
+            }
+            
+            .log-entry.info {
+                color: #4dd0e1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebSocket 패스스루 테스트</h1>
+        
+        <div id="status" class="status disconnected">
+            연결 상태: 연결되지 않음
+        </div>
+        
+        <div class="control-panel">
+            <div>
+                <button id="connectBtn">연결</button>
+                <button id="disconnectBtn" disabled>연결 해제</button>
+            </div>
+            <div style="margin-top: 10px;">
+                <input type="text" id="messageInput" placeholder="전송할 메시지 입력" disabled>
+                <button id="sendBtn" disabled>전송</button>
+            </div>
+            <div style="margin-top: 10px;">
+                <button id="sendTestMsgBtn" disabled>테스트 메시지 전송</button>
+                <button id="sendJsonBtn" disabled>JSON 메시지 전송</button>
+            </div>
+        </div>
+        
+        <h3>로그</h3>
+        <div id="logContainer" class="log-container"></div>
+    </div>
+
+    <script>
+        // DOM 요소
+        const statusDiv = document.getElementById('status');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const sendTestMsgBtn = document.getElementById('sendTestMsgBtn');
+        const sendJsonBtn = document.getElementById('sendJsonBtn');
+        const logContainer = document.getElementById('logContainer');
+        
+        // WebSocket 객체
+        let ws = null;
+        
+        // 테스트 메시지
+        const testMessages = [
+            'Hello, WebSocket Server!',
+            'This is a test message',
+            'Testing data passthrough functionality'
+        ];
+        
+        // 로그 추가 함수
+        function addLog(message, type) {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // 연결 상태 업데이트 함수
+        function updateConnectionStatus(connected, connecting = false) {
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = '연결 상태: 연결됨';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                sendTestMsgBtn.disabled = false;
+                sendJsonBtn.disabled = false;
+            } else if (connecting) {
+                statusDiv.className = 'status connecting';
+                statusDiv.textContent = '연결 상태: 연결 중...';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = true;
+                messageInput.disabled = true;
+                sendBtn.disabled = true;
+                sendTestMsgBtn.disabled = true;
+                sendJsonBtn.disabled = true;
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = '연결 상태: 연결되지 않음';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                messageInput.disabled = true;
+                sendBtn.disabled = true;
+                sendTestMsgBtn.disabled = true;
+                sendJsonBtn.disabled = true;
+            }
+        }
+        
+        // WebSocket 연결 함수
+        function connectWebSocket() {
+            if (ws) {
+                ws.close();
+            }
+            
+            updateConnectionStatus(false, true);
+            addLog('WebSocket 서버에 연결 중...', 'info');
+            
+            // WebSocket 서버 주소
+            const wsUrl = 'ws://127.0.0.1:4000/data';
+            addLog(`연결 주소: ${wsUrl}`, 'info');
+            
+            try {
+                // WebSocket 설정 - 가장 기본적인 설정만 사용
+                ws = new WebSocket(wsUrl);
+                
+                // 문자열 형식만 처리하도록 설정
+                ws.binaryType = 'blob';
+                
+                // 연결 성공 이벤트 처리
+                ws.onopen = function() {
+                    updateConnectionStatus(true);
+                    addLog('WebSocket 서버에 연결되었습니다.', 'success');
+                };
+                
+                // 메시지 수신 이벤트 처리
+                ws.onmessage = function(event) {
+                    try {
+                        // 모든 메시지를 문자열로 처리
+                        let messageText;
+                        
+                        if (typeof event.data === 'string') {
+                            messageText = event.data;
+                            processMessage(messageText);
+                        } else if (event.data instanceof Blob) {
+                            // Blob 데이터를 텍스트로 변환
+                            const reader = new FileReader();
+                            reader.onload = function() {
+                                try {
+                                    const text = reader.result;
+                                    processMessage(text);
+                                } catch (error) {
+                                    addLog(`Blob 데이터 처리 오류: ${error.message}`, 'error');
+                                }
+                            };
+                            reader.readAsText(event.data);
+                        } else {
+                            messageText = String(event.data);
+                            processMessage(messageText);
+                        }
+                    } catch (error) {
+                        addLog(`메시지 처리 오류: ${error.message}`, 'error');
+                    }
+                };
+                
+                // 연결 종료 이벤트 처리
+                ws.onclose = function() {
+                    updateConnectionStatus(false);
+                    addLog('WebSocket 연결이 종료되었습니다.', 'info');
+                    ws = null;
+                };
+                
+                // 오류 이벤트 처리
+                ws.onerror = function(error) {
+                    addLog(`WebSocket 오류 발생. 자세한 내용은 개발자 도구에서 확인하세요.`, 'error');
+                    console.error('WebSocket 오류:', error);
+                    updateConnectionStatus(false);
+                };
+            } catch (error) {
+                addLog(`WebSocket 연결 오류: ${error.message}`, 'error');
+                updateConnectionStatus(false);
+            }
+        }
+        
+        // 메시지 처리 함수
+        function processMessage(messageText) {
+            try {
+                // JSON 메시지 파싱 시도
+                const jsonData = JSON.parse(messageText);
+                
+                // 메시지 타입에 따른 처리
+                if (jsonData.type === 'error') {
+                    addLog(`오류: ${jsonData.message}`, 'error');
+                } else if (jsonData.type === 'info') {
+                    addLog(`정보: ${jsonData.message}`, 'info');
+                } else if (jsonData.type === 'targetConfig') {
+                    addLog(`타겟 설정: ${JSON.stringify(jsonData.config)}`, 'info');
+                } else {
+                    addLog(`수신: ${JSON.stringify(jsonData)}`, 'received');
+                }
+            } catch (e) {
+                // 일반 텍스트 메시지
+                addLog(`수신: ${messageText}`, 'received');
+            }
+        }
+        
+        // 메시지 전송 함수
+        function sendMessage(message) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                try {
+                    // 문자열로 변환하여 전송
+                    const messageString = String(message);
+                    ws.send(messageString);
+                    addLog(`메시지 전송: ${messageString}`, 'sent');
+                } catch (error) {
+                    addLog(`메시지 전송 오류: ${error.message}`, 'error');
+                    console.error('메시지 전송 오류:', error);
+                }
+            } else {
+                addLog('WebSocket이 연결되어 있지 않습니다.', 'error');
+            }
+        }
+        
+        // JSON 메시지 전송 함수
+        function sendJsonMessage() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const jsonInput = document.getElementById('jsonInput').value;
+                try {
+                    // JSON 형식 검증
+                    const jsonObj = JSON.parse(jsonInput);
+                    const jsonString = JSON.stringify(jsonObj);
+                    
+                    // 문자열로 전송
+                    ws.send(jsonString);
+                    addLog(`JSON 메시지 전송: ${JSON.stringify(jsonObj, null, 2)}`, 'sent');
+                    
+                    // 디버깅 정보 추가
+                    console.log('전송된 JSON 메시지:', jsonString);
+                } catch (e) {
+                    addLog(`잘못된 JSON 형식: ${e.message}`, 'error');
+                    console.error('JSON 파싱 오류:', e);
+                }
+            } else {
+                addLog('WebSocket이 연결되어 있지 않습니다.', 'error');
+            }
+        }
+        
+        // 이벤트 리스너
+        connectBtn.addEventListener('click', connectWebSocket);
+        
+        disconnectBtn.addEventListener('click', function() {
+            if (ws) {
+                ws.close();
+                addLog('WebSocket 연결을 종료했습니다.', 'info');
+            }
+        });
+        
+        sendBtn.addEventListener('click', function() {
+            const message = messageInput.value.trim();
+            if (message) {
+                sendMessage(message);
+                messageInput.value = '';
+            }
+        });
+        
+        messageInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                sendBtn.click();
+            }
+        });
+        
+        sendTestMsgBtn.addEventListener('click', function() {
+            const randomIndex = Math.floor(Math.random() * testMessages.length);
+            const message = testMessages[randomIndex];
+            sendMessage(message);
+        });
+        
+        sendJsonBtn.addEventListener('click', function() {
+            const jsonMessage = JSON.stringify({
+                type: 'command',
+                action: 'getData',
+                id: Math.floor(Math.random() * 10000)
+            });
+            sendMessage(jsonMessage);
+        });
+        
+        // 초기 상태 설정
+        updateConnectionStatus(false);
+        addLog('WebSocket 테스트 페이지가 로드되었습니다.', 'info');
+    </script>
+</body>
+</html>

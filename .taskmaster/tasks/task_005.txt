@@ -1,0 +1,50 @@
+# Task ID: 5
+# Title: Implement Data Passthrough Logic
+# Status: pending
+# Dependencies: 3, 4
+# Priority: high
+# Description: Create the core passthrough functionality to relay data between WebSocket clients and target IP connections.
+# Details:
+1. Create a PassthroughService to handle data relay:
+   ```javascript
+   class PassthroughService {
+     constructor(targetConnectionService, eventEmitter) {
+       this.targetConnectionService = targetConnectionService;
+       this.eventEmitter = eventEmitter;
+       this.clients = new Map();
+     }
+     
+     registerClient(clientId, wsConnection) {
+       this.clients.set(clientId, wsConnection);
+       
+       // Create target connection for this client
+       const targetSocket = this.targetConnectionService.createConnection(clientId);
+       
+       // Setup event handlers
+       this.eventEmitter.on('targetData', ({ clientId: id, data }) => {
+         if (id === clientId && this.clients.has(clientId)) {
+           const ws = this.clients.get(clientId);
+           if (ws.readyState === WebSocket.OPEN) {
+             ws.send(data);
+           }
+         }
+       });
+     }
+     
+     handleClientMessage(clientId, message) {
+       // Forward client message to target
+       return this.targetConnectionService.sendData(clientId, message);
+     }
+     
+     removeClient(clientId) {
+       this.clients.delete(clientId);
+       this.targetConnectionService.closeConnection(clientId);
+     }
+   }
+   ```
+2. Implement buffering mechanism for reliable data transfer
+3. Add data integrity checks
+4. Integrate with WebSocket server from Task 3
+
+# Test Strategy:
+Test the PassthroughService with mock WebSocket clients and target connections. Verify data is correctly relayed in both directions. Test with various message sizes and frequencies to ensure buffering works correctly. Verify data integrity is maintained throughout the passthrough process.
