@@ -1,75 +1,64 @@
 # Task ID: 4
-# Title: Implement Target Connection Service
-# Status: pending
+# Title: Configuration Endpoint Implementation
+# Status: done
 # Dependencies: 2, 3
-# Priority: high
-# Description: Create a service to establish and manage connections to target IP addresses based on configuration.
+# Priority: medium
+# Description: Implement the /config WebSocket endpoint to manage target IP and port settings.
 # Details:
-1. Create a TargetConnectionService to manage connections to target IPs:
-   ```javascript
-   const net = require('net');
-   
-   class TargetConnectionService {
-     constructor(configService, eventEmitter) {
-       this.configService = configService;
-       this.eventEmitter = eventEmitter;
-       this.connections = new Map();
-       
-       // Listen for config changes
-       this.configService.addChangeListener(this.handleConfigChange.bind(this));
-     }
-     
-     createConnection(clientId) {
-       const config = this.configService.getConfig();
-       const socket = new net.Socket();
-       
-       socket.connect(config.targetPort, config.targetIp, () => {
-         this.eventEmitter.emit('targetConnected', { clientId });
-       });
-       
-       socket.on('data', (data) => {
-         this.eventEmitter.emit('targetData', { clientId, data });
-       });
-       
-       socket.on('close', () => {
-         this.eventEmitter.emit('targetDisconnected', { clientId });
-       });
-       
-       socket.on('error', (error) => {
-         this.eventEmitter.emit('targetError', { clientId, error: error.message });
-       });
-       
-       this.connections.set(clientId, socket);
-       return socket;
-     }
-     
-     sendData(clientId, data) {
-       const socket = this.connections.get(clientId);
-       if (socket && socket.writable) {
-         return socket.write(data);
-       }
-       return false;
-     }
-     
-     closeConnection(clientId) {
-       const socket = this.connections.get(clientId);
-       if (socket) {
-         socket.destroy();
-         this.connections.delete(clientId);
-       }
-     }
-     
-     handleConfigChange(newConfig) {
-       // Reconnect all existing connections with new config
-       for (const [clientId, socket] of this.connections.entries()) {
-         socket.destroy();
-         this.createConnection(clientId);
-       }
-     }
-   }
-   ```
-2. Implement connection pooling and management
-3. Add reconnection logic with exponential backoff
+1. Create a configuration handler for the '/config' WebSocket path
+2. Implement JSON message parsing for configuration commands
+3. Add validation for IP address and port number inputs
+4. Implement configuration storage mechanism
+5. Add response handling for configuration success/failure
+
+```javascript
+// In the WebSocket connection handler
+if (path === '/config') {
+  ws.on('message', (message) => {
+    try {
+      const config = JSON.parse(message);
+      
+      // Validate config
+      if (!config.targetIp || !config.targetPort) {
+        ws.send(JSON.stringify({
+          status: 'error',
+          message: 'Missing required configuration parameters'
+        }));
+        return;
+      }
+      
+      // Validate IP format and port range
+      if (!isValidIpAddress(config.targetIp) || !isValidPort(config.targetPort)) {
+        ws.send(JSON.stringify({
+          status: 'error',
+          message: 'Invalid IP address or port'
+        }));
+        return;
+      }
+      
+      // Store configuration for this connection
+      const connectionId = generateConnectionId();
+      connectionConfigs.set(connectionId, {
+        targetIp: config.targetIp,
+        targetPort: config.targetPort
+      });
+      
+      ws.connectionId = connectionId;
+      
+      ws.send(JSON.stringify({
+        status: 'success',
+        message: 'Configuration saved',
+        connectionId
+      }));
+    } catch (error) {
+      ws.send(JSON.stringify({
+        status: 'error',
+        message: 'Invalid configuration format'
+      }));
+    }
+  });
+}
+```
 
 # Test Strategy:
-Unit test the TargetConnectionService to verify it correctly establishes connections to target IPs. Test reconnection logic and error handling. Mock the socket connections to simulate various network conditions and verify proper behavior.
+Test configuration message handling with valid and invalid inputs. Verify proper validation of IP addresses and port numbers. Test configuration storage and retrieval. Ensure proper error responses for malformed requests.

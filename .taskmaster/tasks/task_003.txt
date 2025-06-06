@@ -1,49 +1,71 @@
 # Task ID: 3
-# Title: Implement WebSocket Server
-# Status: pending
+# Title: Target Connection Service Implementation
+# Status: done
 # Dependencies: 1
 # Priority: high
-# Description: Create the WebSocket server to handle client connections on the /data path.
+# Description: Implement the service that establishes and manages TCP connections to target IP/port destinations.
 # Details:
-1. Set up a WebSocket server using the `ws` library
-2. Configure the server to listen on the `/data` path
-3. Implement connection handling:
-   ```javascript
-   const WebSocket = require('ws');
-   const http = require('http');
-   
-   // Create HTTP server
-   const server = http.createServer();
-   
-   // Create WebSocket server
-   const wss = new WebSocket.Server({ 
-     server,
-     path: '/data'
-   });
-   
-   wss.on('connection', (ws, req) => {
-     console.log('Client connected');
-     
-     ws.on('message', (message) => {
-       // Handle incoming messages (implemented in Task 4)
-     });
-     
-     ws.on('close', () => {
-       console.log('Client disconnected');
-       // Handle disconnection (implemented in Task 6)
-     });
-     
-     ws.on('error', (error) => {
-       console.error('WebSocket error:', error);
-       // Handle errors (implemented in Task 6)
-     });
-   });
-   
-   server.listen(process.env.PORT || 3000, () => {
-     console.log(`Server started on port ${server.address().port}`);
-   });
-   ```
-4. Implement basic connection tracking
+1. Create a TargetConnectionService class to manage TCP connections
+2. Implement methods to establish connections to specified IP/port
+3. Set up data event handlers for receiving data from target
+4. Implement error handling and connection termination logic
+5. Add buffering mechanism for data transmission
+
+```javascript
+const net = require('net');
+
+class TargetConnectionService {
+  constructor() {
+    this.connections = new Map();
+  }
+  
+  connect(id, targetIp, targetPort) {
+    return new Promise((resolve, reject) => {
+      const client = new net.Socket();
+      
+      client.connect(targetPort, targetIp, () => {
+        this.connections.set(id, client);
+        resolve(client);
+      });
+      
+      client.on('data', (data) => {
+        // Handle data received from target
+        // This will be forwarded to the WebSocket client
+      });
+      
+      client.on('close', () => {
+        // Handle connection close
+        this.connections.delete(id);
+      });
+      
+      client.on('error', (err) => {
+        // Handle connection error
+        reject(err);
+      });
+    });
+  }
+  
+  send(id, data) {
+    const connection = this.connections.get(id);
+    if (connection) {
+      return connection.write(data);
+    }
+    return false;
+  }
+  
+  disconnect(id) {
+    const connection = this.connections.get(id);
+    if (connection) {
+      connection.destroy();
+      this.connections.delete(id);
+      return true;
+    }
+    return false;
+  }
+}
+
+module.exports = new TargetConnectionService();
+```
 
 # Test Strategy:
-Test WebSocket server initialization and verify it correctly handles client connections. Use a WebSocket client library to connect to the server and confirm the connection is established properly.
+Test TCP connection establishment to mock servers. Verify data transmission in both directions, connection termination, and error handling. Use network mocking tools to simulate various network conditions and failures.

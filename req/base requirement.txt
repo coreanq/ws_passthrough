@@ -1,0 +1,10 @@
+# 제품 요구사항 문서 
+
+* node.js version 22 사용 
+* WebSocket 서버 프로그램으로 Send/Recv 된 데이터를 Target IP/Port 로 단순 전달만 함 
+* 1:1 방식으로 구현 
+* /config path 에서 passthrough 할 ip address, port 설정
+* /data path 에서 passthrough 수행  
+* /event path 에서 웹소켓 서버내 각종 이벤트 알림 
+* 웹소켓이나, target ip 연결이 끊긴 경우 실패 처리 및 웹소켓 클라이언트한테 이벤트 알림 
+* 웹소켓 서버는 버퍼링을 해서 target IP 와 통신한다

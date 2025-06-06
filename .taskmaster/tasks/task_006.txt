@@ -1,64 +1,73 @@
 # Task ID: 6
-# Title: Implement Error Handling and Reconnection Logic
-# Status: pending
-# Dependencies: 4, 5
+# Title: Event Notification Implementation
+# Status: done
+# Dependencies: 2, 3
 # Priority: medium
-# Description: Create robust error handling for WebSocket and target IP connections, including automatic reconnection mechanisms.
+# Description: Implement the /event WebSocket endpoint to notify clients about connection events and status changes.
 # Details:
-1. Implement a ConnectionManager to handle reconnection logic:
-   ```javascript
-   class ConnectionManager {
-     constructor(targetConnectionService, eventEmitter) {
-       this.targetConnectionService = targetConnectionService;
-       this.eventEmitter = eventEmitter;
-       this.reconnectAttempts = new Map();
-       this.maxReconnectAttempts = 5;
-       
-       this.setupEventListeners();
-     }
-     
-     setupEventListeners() {
-       this.eventEmitter.on('targetDisconnected', ({ clientId }) => {
-         this.attemptReconnect(clientId);
-       });
-       
-       this.eventEmitter.on('targetError', ({ clientId, error }) => {
-         console.error(`Error with target connection for client ${clientId}:`, error);
-         this.attemptReconnect(clientId);
-       });
-     }
-     
-     attemptReconnect(clientId) {
-       const attempts = this.reconnectAttempts.get(clientId) || 0;
-       
-       if (attempts < this.maxReconnectAttempts) {
-         const delay = Math.pow(2, attempts) * 1000; // Exponential backoff
-         
-         this.eventEmitter.emit('reconnecting', { 
-           clientId, 
-           attempt: attempts + 1, 
-           maxAttempts: this.maxReconnectAttempts,
-           delay
-         });
-         
-         setTimeout(() => {
-           this.targetConnectionService.createConnection(clientId);
-           this.reconnectAttempts.set(clientId, attempts + 1);
-         }, delay);
-       } else {
-         this.eventEmitter.emit('reconnectFailed', { clientId });
-         this.reconnectAttempts.delete(clientId);
-       }
-     }
-     
-     resetReconnectAttempts(clientId) {
-       this.reconnectAttempts.delete(clientId);
-     }
-   }
-   ```
-2. Implement WebSocket error handling
-3. Add circuit breaker pattern for preventing cascading failures
-4. Implement graceful degradation strategies
+1. Create an event handler for the '/event' WebSocket path
+2. Implement an event emitter system for internal server events
+3. Set up event subscription mechanism for WebSocket clients
+4. Define event types and message formats for different scenarios
+5. Implement event broadcasting to subscribed clients
+
+```javascript
+const EventEmitter = require('events');
+const serverEvents = new EventEmitter();
+
+// In the WebSocket connection handler
+if (path === '/event') {
+  // Send initial connection success event
+  ws.send(JSON.stringify({
+    type: 'connection',
+    status: 'established',
+    timestamp: Date.now()
+  }));
+  
+  // Set up event listener for this client
+  const eventHandler = (event) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(event));
+    }
+  };
+  
+  serverEvents.on('serverEvent', eventHandler);
+  
+  ws.on('message', (message) => {
+    try {
+      const eventRequest = JSON.parse(message);
+      
+      // Handle event subscription requests
+      if (eventRequest.action === 'subscribe') {
+        ws.send(JSON.stringify({
+          type: 'subscription',
+          status: 'success',
+          events: eventRequest.events || 'all'
+        }));
+      }
+    } catch (error) {
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Invalid event request format'
+      }));
+    }
+  });
+  
+  ws.on('close', () => {
+    // Clean up event listener
+    serverEvents.removeListener('serverEvent', eventHandler);
+  });
+}
+
+// Example of emitting an event elsewhere in the code
+serverEvents.emit('serverEvent', {
+  type: 'connection',
+  status: 'disconnected',
+  target: '192.168.1.100:8080',
+  reason: 'Target connection reset',
+  timestamp: Date.now()
+});
+```
 
 # Test Strategy:
-Test reconnection logic with simulated network failures. Verify exponential backoff works correctly. Test circuit breaker functionality to ensure it prevents cascading failures. Verify error events are properly emitted and handled.
+Test event subscription and notification with various event types. Verify events are properly delivered to subscribed clients. Test event delivery under connection stress conditions. Ensure proper cleanup of event listeners when connections close.

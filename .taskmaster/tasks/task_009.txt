@@ -1,42 +1,79 @@
 # Task ID: 9
-# Title: Implement Security Features
-# Status: pending
-# Dependencies: 3, 5
-# Priority: high
-# Description: Add security features including secure WebSocket connections, data integrity checks, and access control.
+# Title: Logging and Monitoring
+# Status: done
+# Dependencies: 7, 8
+# Priority: low
+# Description: Implement comprehensive logging and monitoring to track server performance and troubleshoot issues.
 # Details:
-1. Implement secure WebSocket connections (WSS):
-   ```javascript
-   const https = require('https');
-   const fs = require('fs');
-   
-   const options = {
-     key: fs.readFileSync('path/to/private-key.pem'),
-     cert: fs.readFileSync('path/to/certificate.pem')
-   };
-   
-   const server = https.createServer(options);
-   const wss = new WebSocket.Server({ server, path: '/data' });
-   ```
-2. Implement basic authentication for WebSocket connections:
-   ```javascript
-   wss.on('connection', (ws, req) => {
-     // Parse the URL to get the query parameters
-     const url = new URL(req.url, 'wss://localhost');
-     const token = url.searchParams.get('token');
-     
-     // Validate the token
-     if (!isValidToken(token)) {
-       ws.close(4000, 'Invalid token');
-       return;
-     }
-     
-     // Continue with connection handling
-   });
-   ```
-3. Add rate limiting to prevent abuse
-4. Implement IP whitelisting for target connections
-5. Add data validation and sanitization
+1. Implement structured logging with different log levels
+2. Add request/response logging for debugging
+3. Implement connection lifecycle logging
+4. Add performance metrics logging
+5. Implement log rotation and management
+
+```javascript
+const winston = require('winston');
+
+// Configure logger
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'websocket-passthrough' },
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' })
+  ]
+});
+
+// Connection lifecycle logging
+const logConnectionLifecycle = (event, details) => {
+  logger.info('Connection event', {
+    event,
+    ...details,
+    timestamp: new Date().toISOString()
+  });
+};
+
+// Performance logging
+const logPerformanceMetrics = (metrics) => {
+  logger.info('Performance metrics', {
+    ...metrics,
+    timestamp: new Date().toISOString()
+  });
+};
+
+// Error logging
+const logError = (error, context) => {
+  logger.error('Error occurred', {
+    error: error.message,
+    stack: error.stack,
+    context,
+    timestamp: new Date().toISOString()
+  });
+};
+
+// Example usage
+wss.on('connection', (ws, req) => {
+  const connectionId = generateConnectionId();
+  logConnectionLifecycle('websocket_connected', {
+    connectionId,
+    remoteAddress: req.socket.remoteAddress,
+    path: req.url
+  });
+  
+  ws.on('close', (code, reason) => {
+    logConnectionLifecycle('websocket_disconnected', {
+      connectionId,
+      code,
+      reason: reason.toString()
+    });
+  });
+});
+```
 
 # Test Strategy:
-Test secure WebSocket connections with valid and invalid certificates. Test authentication with valid and invalid tokens. Verify rate limiting correctly prevents abuse. Test IP whitelisting functionality.
+Verify log output format and content across different log levels. Test log rotation and retention policies. Verify performance impact of logging is minimal. Test log output under error conditions to ensure all relevant information is captured.

@@ -1,50 +1,88 @@
 # Task ID: 5
-# Title: Implement Data Passthrough Logic
-# Status: pending
-# Dependencies: 3, 4
+# Title: Data Passthrough Implementation
+# Status: done
+# Dependencies: 2, 3, 4
 # Priority: high
-# Description: Create the core passthrough functionality to relay data between WebSocket clients and target IP connections.
+# Description: Implement the /data WebSocket endpoint to handle data passthrough between WebSocket clients and target IP/port.
 # Details:
-1. Create a PassthroughService to handle data relay:
-   ```javascript
-   class PassthroughService {
-     constructor(targetConnectionService, eventEmitter) {
-       this.targetConnectionService = targetConnectionService;
-       this.eventEmitter = eventEmitter;
-       this.clients = new Map();
-     }
-     
-     registerClient(clientId, wsConnection) {
-       this.clients.set(clientId, wsConnection);
-       
-       // Create target connection for this client
-       const targetSocket = this.targetConnectionService.createConnection(clientId);
-       
-       // Setup event handlers
-       this.eventEmitter.on('targetData', ({ clientId: id, data }) => {
-         if (id === clientId && this.clients.has(clientId)) {
-           const ws = this.clients.get(clientId);
-           if (ws.readyState === WebSocket.OPEN) {
-             ws.send(data);
-           }
-         }
-       });
-     }
-     
-     handleClientMessage(clientId, message) {
-       // Forward client message to target
-       return this.targetConnectionService.sendData(clientId, message);
-     }
-     
-     removeClient(clientId) {
-       this.clients.delete(clientId);
-       this.targetConnectionService.closeConnection(clientId);
-     }
-   }
-   ```
-2. Implement buffering mechanism for reliable data transfer
-3. Add data integrity checks
-4. Integrate with WebSocket server from Task 3
+1. Create a data handler for the '/data' WebSocket path
+2. Implement connection establishment to target IP/port using stored configuration
+3. Set up bidirectional data forwarding between WebSocket and TCP connection
+4. Implement data buffering mechanism to handle high throughput
+5. Add connection tracking and cleanup logic
+
+```javascript
+// In the WebSocket connection handler
+if (path === '/data') {
+  ws.on('message', async (message) => {
+    try {
+      // First message should contain the connectionId from config
+      if (!ws.targetConnection) {
+        const initData = JSON.parse(message);
+        if (!initData.connectionId) {
+          ws.send(JSON.stringify({
+            status: 'error',
+            message: 'Missing connectionId'
+          }));
+          return;
+        }
+        
+        const config = connectionConfigs.get(initData.connectionId);
+        if (!config) {
+          ws.send(JSON.stringify({
+            status: 'error',
+            message: 'Invalid connectionId or configuration not found'
+          }));
+          return;
+        }
+        
+        try {
+          // Establish connection to target
+          const targetConnection = await targetConnectionService.connect(
+            initData.connectionId,
+            config.targetIp,
+            config.targetPort
+          );
+          
+          ws.targetConnection = targetConnection;
+          ws.connectionId = initData.connectionId;
+          
+          // Set up data handler from target to WebSocket
+          targetConnection.on('data', (data) => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(data);
+            }
+          });
+          
+          ws.send(JSON.stringify({
+            status: 'connected',
+            message: `Connected to ${config.targetIp}:${config.targetPort}`
+          }));
+        } catch (error) {
+          ws.send(JSON.stringify({
+            status: 'error',
+            message: `Failed to connect to target: ${error.message}`
+          }));
+        }
+      } else {
+        // Regular data message, forward to target
+        targetConnectionService.send(ws.connectionId, message);
+      }
+    } catch (error) {
+      ws.send(JSON.stringify({
+        status: 'error',
+        message: `Error processing message: ${error.message}`
+      }));
+    }
+  });
+  
+  ws.on('close', () => {
+    if (ws.connectionId) {
+      targetConnectionService.disconnect(ws.connectionId);
+    }
+  });
+}
+```
 
 # Test Strategy:
-Test the PassthroughService with mock WebSocket clients and target connections. Verify data is correctly relayed in both directions. Test with various message sizes and frequencies to ensure buffering works correctly. Verify data integrity is maintained throughout the passthrough process.
+Test data transmission in both directions with various payload sizes. Verify correct handling of connection establishment and termination. Test buffering under high load conditions. Measure latency to ensure minimal delay in data passthrough.

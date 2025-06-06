@@ -1,53 +1,51 @@
-/**
- * Logger utility for the WebSocket Passthrough Server
- * Provides consistent logging throughout the application
- */
-
+// src/utils/logger.js
 const winston = require('winston');
-const path = require('path');
 
-// Define log format
-const logFormat = winston.format.combine(
-  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-  winston.format.errors({ stack: true }),
-  winston.format.splat(),
-  winston.format.json()
-);
+// Dark Mode 를 고려해서 색상 설정이 되어야 한다.
+// winston.format.colorize()는 콘솔 출력에 색상을 추가합니다.
+// 파일 출력에는 색상이 필요 없으므로, 콘솔 트랜스포트에만 적용합니다.
+const customColors = {
+  error: 'red',
+  warn: 'yellow',
+  info: 'green',
+  http: 'magenta',
+  verbose: 'cyan',
+  debug: 'blue',
+  silly: 'grey'
+};
+winston.addColors(customColors);
 
-// Create logger instance
 const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: logFormat,
-  defaultMeta: { service: 'websocket-passthrough' },
+  level: process.env.LOG_LEVEL || 'info', // 환경 변수 또는 기본값 'info'
+  format: winston.format.combine(
+    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    winston.format.json() // 구조화된 JSON 로그
+  ),
+  defaultMeta: { service: 'websocket-passthrough-server' },
   transports: [
-    // Console transport for all environments
     new winston.transports.Console({
       format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.printf(({ timestamp, level, message, ...meta }) => {
-          return `${timestamp} ${level}: ${message} ${Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''}`;
-        })
+        winston.format.colorize({ all: true }), // 콘솔에 색상 적용
+        winston.format.printf(
+          info => `${info.timestamp} ${info.level}: ${info.message} ${info.meta ? JSON.stringify(info.meta) : ''}`
+        )
       )
     }),
-    // File transport for production
-    new winston.transports.File({ 
-      filename: path.join('logs', 'error.log'), 
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
-    }),
-    new winston.transports.File({ 
-      filename: path.join('logs', 'combined.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
-    })
+    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'logs/combined.log' })
   ]
 });
 
-// Create logs directory if it doesn't exist
-const fs = require('fs');
-if (!fs.existsSync('logs')) {
-  fs.mkdirSync('logs');
+// 개발 환경에서만 디버그 레벨 로깅 활성화
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize({ all: true }),
+      winston.format.printf(
+        info => `${info.timestamp} ${info.level}: ${info.message} ${info.meta ? JSON.stringify(info.meta) : ''}`
+      )
+    )
+  }));
 }
 
 module.exports = logger;

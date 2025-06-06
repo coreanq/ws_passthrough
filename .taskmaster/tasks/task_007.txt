@@ -1,62 +1,89 @@
 # Task ID: 7
-# Title: Implement Event Notification System
-# Status: pending
-# Dependencies: 3, 6
-# Priority: medium
-# Description: Create the /event WebSocket endpoint to provide real-time event notifications about connection status and data transfer.
+# Title: Connection Management and Error Handling
+# Status: done
+# Dependencies: 2, 3, 5, 6
+# Priority: high
+# Description: Implement robust connection management and error handling for both WebSocket and target connections.
 # Details:
-1. Set up a separate WebSocket server for event notifications:
-   ```javascript
-   const eventWss = new WebSocket.Server({ 
-     server,
-     path: '/event'
-   });
-   
-   // Create event emitter
-   const EventEmitter = require('events');
-   const eventEmitter = new EventEmitter();
-   
-   // Track connected event clients
-   const eventClients = new Set();
-   
-   eventWss.on('connection', (ws) => {
-     eventClients.add(ws);
-     
-     ws.on('close', () => {
-       eventClients.delete(ws);
-     });
-   });
-   
-   // Broadcast events to all connected clients
-   function broadcastEvent(eventType, data) {
-     const eventMessage = JSON.stringify({
-       type: eventType,
-       timestamp: Date.now(),
-       data
-     });
-     
-     for (const client of eventClients) {
-       if (client.readyState === WebSocket.OPEN) {
-         client.send(eventMessage);
-       }
-     }
-   }
-   
-   // Register event listeners
-   const events = [
-     'clientConnected', 'clientDisconnected', 'targetConnected', 'targetDisconnected',
-     'targetError', 'dataReceived', 'dataSent', 'reconnecting', 'reconnectFailed'
-   ];
-   
-   events.forEach(eventType => {
-     eventEmitter.on(eventType, (data) => {
-       broadcastEvent(eventType, data);
-     });
-   });
-   ```
-2. Implement event filtering options
-3. Add event persistence for history retrieval
-4. Implement event throttling for high-frequency events
+1. Create a ConnectionManager class to track and manage all connections
+2. Implement proper error handling for WebSocket and TCP connection failures
+3. Add automatic reconnection logic with configurable retry policies
+4. Implement graceful shutdown procedures
+5. Add connection monitoring and timeout handling
+
+```javascript
+class ConnectionManager {
+  constructor() {
+    this.wsConnections = new Map();
+    this.targetConnections = new Map();
+    this.connectionPairs = new Map();
+  }
+  
+  registerWebSocketConnection(id, ws, path) {
+    this.wsConnections.set(id, { ws, path, createdAt: Date.now() });
+    return id;
+  }
+  
+  registerTargetConnection(id, socket, targetIp, targetPort) {
+    this.targetConnections.set(id, { socket, targetIp, targetPort, createdAt: Date.now() });
+    return id;
+  }
+  
+  createConnectionPair(wsId, targetId) {
+    this.connectionPairs.set(wsId, targetId);
+    return { wsId, targetId };
+  }
+  
+  handleConnectionError(id, error) {
+    // Log error
+    console.error(`Connection error for ${id}:`, error);
+    
+    // Emit event
+    serverEvents.emit('serverEvent', {
+      type: 'error',
+      connectionId: id,
+      message: error.message,
+      timestamp: Date.now()
+    });
+    
+    // Clean up connections
+    this.cleanupConnection(id);
+  }
+  
+  cleanupConnection(id) {
+    // Clean up WebSocket connection
+    if (this.wsConnections.has(id)) {
+      const wsConn = this.wsConnections.get(id);
+      if (wsConn.ws.readyState === WebSocket.OPEN) {
+        wsConn.ws.close();
+      }
+      this.wsConnections.delete(id);
+    }
+    
+    // Clean up target connection
+    if (this.targetConnections.has(id)) {
+      const targetConn = this.targetConnections.get(id);
+      targetConn.socket.destroy();
+      this.targetConnections.delete(id);
+    }
+    
+    // Clean up connection pair
+    if (this.connectionPairs.has(id)) {
+      const targetId = this.connectionPairs.get(id);
+      this.cleanupConnection(targetId);
+      this.connectionPairs.delete(id);
+    }
+  }
+  
+  getConnectionStats() {
+    return {
+      activeWebSocketConnections: this.wsConnections.size,
+      activeTargetConnections: this.targetConnections.size,
+      activeConnectionPairs: this.connectionPairs.size
+    };
+  }
+}
+```
 
 # Test Strategy:
-Test the event notification system by connecting multiple clients and verifying they receive the correct events. Test with high event frequency to ensure throttling works correctly. Verify event filtering works as expected.
+Test connection management under various failure scenarios. Verify proper cleanup of resources when connections terminate. Test reconnection logic with simulated network failures. Verify memory usage remains stable during connection churn.

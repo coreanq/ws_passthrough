@@ -1,44 +1,42 @@
 # Task ID: 2
-# Title: Implement Configuration Management API
-# Status: in-progress
+# Title: WebSocket Server Implementation
+# Status: done
 # Dependencies: 1
 # Priority: high
-# Description: Create the /config endpoint to manage passthrough IP address and port settings with real-time application.
+# Description: Implement the core WebSocket server that listens for incoming connections and handles basic WebSocket protocol operations.
 # Details:
-1. Create an Express.js server to handle HTTP requests
-2. Implement the `/config` endpoint with GET and POST methods:
-   - GET: Return current configuration
-   - POST: Update configuration
-3. Create a configuration service to manage settings:
-   ```javascript
-   class ConfigService {
-     constructor() {
-       this.targetIp = process.env.DEFAULT_TARGET_IP || '127.0.0.1';
-       this.targetPort = process.env.DEFAULT_TARGET_PORT || 8080;
-       this.listeners = [];
-     }
-     
-     getConfig() {
-       return { targetIp: this.targetIp, targetPort: this.targetPort };
-     }
-     
-     updateConfig(newConfig) {
-       this.targetIp = newConfig.targetIp || this.targetIp;
-       this.targetPort = newConfig.targetPort || this.targetPort;
-       this.notifyListeners();
-       return this.getConfig();
-     }
-     
-     addChangeListener(listener) {
-       this.listeners.push(listener);
-     }
-     
-     notifyListeners() {
-       this.listeners.forEach(listener => listener(this.getConfig()));
-     }
-   }
-   ```
-4. Implement configuration validation middleware
+1. Create a WebSocket server using the 'ws' library
+2. Implement connection handling for new WebSocket clients
+3. Set up event listeners for 'message', 'close', and 'error' events
+4. Implement basic message parsing and validation
+5. Create a connection manager to track active WebSocket connections
+
+```javascript
+const WebSocket = require('ws');
+const { createServer } = require('http');
+
+const server = createServer();
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', (ws, req) => {
+  // Handle new connection
+  const path = req.url;
+  
+  ws.on('message', (message) => {
+    // Handle incoming messages based on path
+  });
+  
+  ws.on('close', () => {
+    // Handle connection close
+  });
+  
+  ws.on('error', (error) => {
+    // Handle errors
+  });
+});
+
+server.listen(process.env.PORT || 8080);
+```
 
 # Test Strategy:
-Unit test the ConfigService class to ensure it properly stores and updates configuration. Test the API endpoints with various valid and invalid inputs. Verify that configuration changes are applied in real-time.
+Use WebSocket client libraries to test connection establishment, message sending/receiving, and connection termination. Verify the server correctly handles WebSocket protocol handshakes and events.
