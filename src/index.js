@@ -57,7 +57,7 @@ wss.on('connection', (ws, req) => {
   performanceMonitor.updateConnectionCount(wss.clients.size);
 
   let initialTargetIp = '127.0.0.1';
-  let initialTargetPort = 3000;
+  let initialTargetPort = 3001;
 
   let targetConnectionService = null;
   let targetSocket = null;

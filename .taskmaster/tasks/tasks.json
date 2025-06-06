@@ -123,6 +123,17 @@
       ],
       "status": "done",
       "subtasks": []
+    },
+    {
+      "id": 10,
+      "title": "Dummy TCP Echo 서버 및 WebSocket 클라이언트 테스트 환경 구축",
+      "description": "간단한 더미 TCP 에코 서버를 구현하여 WebSocket passthrough 서버의 TCP 연결 테스트를 수행하고, test.html 파일을 생성하여 웹 브라우저에서 WebSocket 서버에 접속하고 데이터를 송수신하며 서버 이벤트를 확인할 수 있도록 합니다.",
+      "status": "pending",
+      "dependencies": [],
+      "priority": "high",
+      "details": "1. Node.js로 간단한 TCP 에코 서버 (dummyTcpEchoServer.js)를 구현합니다. 이 서버는 수신한 데이터를 그대로 클라이언트에게 다시 보냅니다.\n   * 실행 시 포트 번호를 설정할 수 있도록 구현합니다. 예를 들어, 명령줄 인수를 통해 포트를 지정할 수 있도록 합니다. (예: `node dummyTcpEchoServer.js 3000`)\n2. test.html 파일을 생성합니다. 이 HTML 파일은 다음 기능을 포함해야 합니다:\n    * WebSocket 서버(ws://localhost:8080)에 연결하는 JavaScript 코드.\n    * 연결 상태를 표시하는 UI.\n    * 메시지를 입력하고 서버로 전송할 수 있는 입력 필드 및 버튼.\n    * 서버로부터 수신한 메시지를 표시하는 영역.\n    * /event 엔드포인트를 통해 수신한 서버 이벤트를 표시하는 영역.\n    * /config 엔드포인트를 통해 대상 IP와 포트를 설정할 수 있는 UI (예: 입력 필드 및 버튼).\n3. 테스트 절차를 문서화합니다. (예: dummyTcpEchoServer.js 실행 시 포트 지정 방법, test.html 브라우저에서 열기, 메시지 송수신 테스트, 이벤트 확인).",
+      "testStrategy": "",
+      "subtasks": []
     }
   ]
 }

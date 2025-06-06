@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Passthrough Test Client</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #1e1e1e; color: #d4d4d4; }
+        .container { display: flex; gap: 20px; }
+        .panel { flex: 1; border: 1px solid #333; padding: 15px; border-radius: 8px; background-color: #252526; }
+        h2 { color: #569cd6; }
+        button { background-color: #007acc; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #005f99; }
+        input[type="text"], input[type="number"], textarea {
+            width: calc(100% - 20px); padding: 8px; margin-top: 5px; border: 1px solid #3e3e3e; border-radius: 4px;
+            background-color: #3c3c3c; color: #d4d4d4;
+        }
+        textarea { height: 150px; resize: vertical; }
+        .log-area { background-color: #000; color: #0f0; padding: 10px; border-radius: 4px; height: 200px; overflow-y: scroll; font-family: 'Courier New', Courier, monospace; }
+        .status { margin-bottom: 15px; padding: 8px; border-radius: 4px; }
+        .status.connected { background-color: #28a745; color: white; }
+        .status.disconnected { background-color: #dc3545; color: white; }
+        .status.connecting { background-color: #ffc107; color: black; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Passthrough Test Client</h1>
+
+    <div class="container">
+        <div class="panel">
+            <h2>Connection</h2>
+            <div id="connectionStatus" class="status disconnected">Disconnected</div>
+            <button onclick="connectWebSocket()">Connect</button>
+            <button onclick="disconnectWebSocket()">Disconnect</button>
+
+            <h2>Configuration</h2>
+            <p>Target IP: <input type="text" id="targetIp" value="127.0.0.1"></p>
+            <p>Target Port: <input type="number" id="targetPort" value="3001"></p>
+            <button onclick="sendConfig()">Set Target Config</button>
+        </div>
+
+        <div class="panel">
+            <h2>Send Message</h2>
+            <textarea id="messageInput" placeholder="Enter message to send (text or binary)"></textarea><br>
+            <button id="sendTextButton" onclick="sendMessage('text')">Send Text</button>
+            <button id="sendBinaryButton" onclick="sendMessage('binary')">Send Binary (as ArrayBuffer)</button>
+
+            <h2>Received Messages</h2>
+            <div id="receivedMessages" class="log-area"></div>
+        </div>
+
+        <div class="panel">
+            <h2>Server Events</h2>
+            <div id="serverEvents" class="log-area"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        const wsUrl = 'ws://localhost:8080';
+
+        const connectionStatus = document.getElementById('connectionStatus');
+        const receivedMessages = document.getElementById('receivedMessages');
+        const serverEvents = document.getElementById('serverEvents');
+        const messageInput = document.getElementById('messageInput');
+        const targetIpInput = document.getElementById('targetIp');
+        const targetPortInput = document.getElementById('targetPort');
+
+        function log(message, type = 'message') {
+            const div = document.createElement('div');
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            if (type === 'message') {
+                receivedMessages.appendChild(div);
+                receivedMessages.scrollTop = receivedMessages.scrollHeight;
+            } else if (type === 'event') {
+                serverEvents.appendChild(div);
+                serverEvents.scrollTop = serverEvents.scrollHeight;
+            }
+        }
+
+        function updateConnectionStatus(status) {
+            connectionStatus.className = `status ${status}`;
+            connectionStatus.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        }
+
+        function connectWebSocket() {
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+                log('WebSocket is already connected or connecting.', 'event');
+                return;
+            }
+
+            updateConnectionStatus('connecting');
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                log('WebSocket Connected.', 'event');
+                updateConnectionStatus('connected');
+                // Subscribe to server events
+                ws.send(JSON.stringify({ path: '/event' }));
+            };
+
+            ws.onmessage = (event) => {
+                if (typeof event.data === 'string') {
+                    try {
+                        const parsed = JSON.parse(event.data);
+                        if (parsed.path === '/event') {
+                            log(`Event: ${parsed.type} - ${parsed.message}`, 'event');
+                            if (parsed.type === 'target_connect') {
+                                setSendButtonsEnabled(true);
+                                log(`Target connection established to ${parsed.message.split('to ')[1]}`, 'event');
+                            } else if (parsed.type === 'target_connect_failed') {
+                                setSendButtonsEnabled(false);
+                                log(`Target connection failed: ${parsed.message}`, 'event');
+                                alert(`Target connection failed: ${parsed.message}`);
+                            }
+                        } else {
+                            log(`Received (JSON): ${JSON.stringify(parsed)}`);
+                        }
+                    } catch (e) {
+                        log(`Received (Text): ${event.data}`);
+                    }
+                } else if (event.data instanceof ArrayBuffer) {
+                    const view = new Uint8Array(event.data);
+                    log(`Received (Binary ArrayBuffer): ${Array.from(view).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+                } else if (event.data instanceof Blob) {
+                    // For simplicity, we'll read Blob as text, but in real scenarios, you might handle it differently
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        log(`Received (Binary Blob - Text): ${reader.result}`);
+                    };
+                    reader.readAsText(event.data);
+                }
+            };
+
+            ws.onclose = () => {
+                log('WebSocket Disconnected.', 'event');
+                updateConnectionStatus('disconnected');
+            };
+
+            ws.onerror = (error) => {
+                log(`WebSocket Error: ${error.message || error}`, 'event');
+                updateConnectionStatus('disconnected');
+            };
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+            }
+        }
+
+        function sendMessage(type) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('WebSocket is not connected.', 'event');
+                return;
+            }
+
+            const message = messageInput.value;
+            if (!message) {
+                alert('Please enter a message.');
+                return;
+            }
+
+            if (type === 'text') {
+                ws.send(message);
+                log(`Sent (Text): ${message}`);
+            } else if (type === 'binary') {
+                // Convert string to ArrayBuffer for binary sending
+                const encoder = new TextEncoder();
+                const encoded = encoder.encode(message);
+                ws.send(encoded.buffer);
+                log(`Sent (Binary ArrayBuffer): ${Array.from(encoded).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+            }
+            messageInput.value = ''; // Clear input after sending
+        }
+
+        function setSendButtonsEnabled(enabled) {
+            document.getElementById('sendTextButton').disabled = !enabled;
+            document.getElementById('sendBinaryButton').disabled = !enabled;
+        }
+
+        // 초기 로드 시 메시지 전송 버튼 비활성화
+        setSendButtonsEnabled(false);
+
+        function sendConfig() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('WebSocket is not connected.', 'event');
+                return;
+            }
+
+            const targetIp = targetIpInput.value;
+            const targetPort = parseInt(targetPortInput.value, 10);
+
+            if (!targetIp || isNaN(targetPort) || targetPort <= 0 || targetPort > 65535) {
+                alert('Please enter a valid Target IP and Port.');
+                return;
+            }
+
+            const configMessage = {
+                path: '/config',
+                data: {
+                    targetIp: targetIp,
+                    targetPort: targetPort
+                }
+            };
+            ws.send(JSON.stringify(configMessage));
+            log(`Sent (Config): ${JSON.stringify(configMessage)}`);
+        }
+
+        // Initial connection attempt when page loads
+
+    </script>
+</body>
+</html>
