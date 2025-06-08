@@ -69,27 +69,18 @@ wss.on('connection', (ws, req) => {
   };
 
   ws.on('message', message => {
-    if (Buffer.isBuffer(message)) {
-      if (targetSocket && !targetSocket.destroyed) {
-        const canWrite = targetSocket.write(message);
-        if (!canWrite) {
-          ws.pause(); // WebSocket 수신을 일시 중지
-          targetSocket.once('drain', () => {
-            ws.resume(); // TCP 소켓이 drain되면 WebSocket 수신 재개
-          });
-        }
-        performanceMonitor.recordMessage(message.length, 0);
-      } else {
-        ws.send(JSON.stringify({ status: 'error', message: 'Target connection not established for binary data.' }));
-      }
-      return;
-    }
+    logger.warn(`WebSocket 수신: ${message}`);
 
+    let parsedMessage;
     try {
-      const parsedMessage = JSON.parse(message);
+      parsedMessage = JSON.parse(message);
+      // If parsing successful, it's a JSON message
+      logger.warn(`1 parsedMessage: ${JSON.stringify(parsedMessage)}`);
 
       if (parsedMessage.path === '/config') {
+        logger.debug('Received /config message. Processing connection setup.');
         const { targetIp, targetPort } = parsedMessage.data;
+        logger.info(`Target IP: ${targetIp}, Target Port: ${targetPort}`);
 
         if (!targetIp || !targetPort || typeof targetPort !== 'number' || targetPort <= 0 || targetPort > 65535) {
           ws.send(JSON.stringify({ status: 'error', message: 'Invalid target IP or port.' }));
@@ -98,6 +89,8 @@ wss.on('connection', (ws, req) => {
 
         if (targetConnectionService) {
           targetConnectionService.disconnect();
+          targetConnectionService = null; // Explicitly nullify previous service
+          targetSocket = null; // Explicitly nullify previous socket
         }
 
         targetConnectionService = new TargetConnectionService(targetIp, targetPort, { reconnectInterval: 3000, maxRetries: 10 });
@@ -106,13 +99,13 @@ wss.on('connection', (ws, req) => {
             targetSocket = socket;
             connectionManager.registerTargetConnection(connectionId, targetSocket, targetIp, targetPort);
             connectionManager.createConnectionPair(connectionId, connectionId);
-
-            logger.info(`새로운 Target ${targetIp}:${targetPort}에 연결되었습니다.`);
             setupTargetSocketListeners(ws, targetSocket);
             serverEvents.emit('serverEvent', { connectionId: ws.connectionId, path: '/event', type: 'target_connect', message: `Connected to ${targetIp}:${targetPort}` });
+            ws.send(JSON.stringify({ status: 'success', message: `Connected to target ${targetIp}:${targetPort}` }));
           })
           .catch(error => {
             logger.error('Target 연결 실패:', error);
+            targetSocket = null; // Ensure targetSocket is null on failure
             if (ws.readyState === WebSocket.OPEN) {
               const eventMessage = { path: '/event', type: 'target_connect_failed', message: `Target connection failed: ${error.message}` };
               ws.send(JSON.stringify(eventMessage));
@@ -122,36 +115,45 @@ wss.on('connection', (ws, req) => {
           });
 
       } else if (parsedMessage.path === '/data') {
+        // This path is for JSON messages containing data to be sent to targetSocket
         if (targetSocket && !targetSocket.destroyed) {
-          const canWrite = targetSocket.write(Buffer.from(parsedMessage.data));
+          // Assuming parsedMessage.data is a Uint8Array or similar that needs to be converted to a Buffer
+          const dataBuffer = Buffer.from(parsedMessage.data);
+          const canWrite = targetSocket.write(dataBuffer);
           if (!canWrite) {
             ws.pause(); // WebSocket 수신을 일시 중지
             targetSocket.once('drain', () => {
               ws.resume(); // TCP 소켓이 drain되면 WebSocket 수신 재개
             });
           }
-          performanceMonitor.recordMessage(Buffer.from(parsedMessage.data).length, 0);
+          performanceMonitor.recordMessage(dataBuffer.length, 0);
         } else {
-          ws.send(JSON.stringify({ status: 'error', message: 'Target connection not established.' }));
+          ws.send(JSON.stringify({ status: 'error', message: 'Target connection not established for JSON data.' }));
         }
       } else if (parsedMessage.path === '/event') {
+        logger.warn(`2`);
         serverEvents.on('serverEvent', clientEventHandler);
         ws.send(JSON.stringify({ status: 'success', message: 'Subscribed to server events.' }));
-      }
-      else {
+      } else {
+        logger.warn(`3`);
         ws.send(JSON.stringify({ status: 'error', message: 'Unknown path.' }));
       }
     } catch (e) {
-      logger.debug(`WebSocket 수신 (Raw Text): ${message.toString()}`);
+      // If not JSON, treat as raw data (assumed to be Uint8Array or similar)
+      logger.debug(`WebSocket 수신 (Raw Data - not JSON): ${message.toString()}`);
       if (targetSocket && !targetSocket.destroyed) {
-        const canWrite = targetSocket.write(message);
+        // Assuming 'message' is a Uint8Array or can be directly used to create a Buffer
+        const dataToWrite = Buffer.from(message); 
+        const canWrite = targetSocket.write(dataToWrite);
         if (!canWrite) {
           ws.pause(); // WebSocket 수신을 일시 중지
           targetSocket.once('drain', () => {
             ws.resume(); // TCP 소켓이 drain되면 WebSocket 수신 재개
           });
         }
-        performanceMonitor.recordMessage(message.length, 0);
+        performanceMonitor.recordMessage(dataToWrite.length, 0);
+      } else {
+        ws.send(JSON.stringify({ status: 'error', message: 'Target connection not established for raw data.' }));
       }
     }
   });
@@ -162,7 +164,6 @@ wss.on('connection', (ws, req) => {
       targetSocket = socket;
       connectionManager.registerTargetConnection(connectionId, targetSocket, initialTargetIp, initialTargetPort);
       connectionManager.createConnectionPair(connectionId, connectionId);
-
       setupTargetSocketListeners(ws, targetSocket);
       serverEvents.emit('serverEvent', { connectionId: ws.connectionId, path: '/event', type: 'initial_target_connect', message: `Initial connection to ${initialTargetIp}:${initialTargetPort}` });
     })

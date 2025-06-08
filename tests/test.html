@@ -104,14 +104,16 @@
                     try {
                         const parsed = JSON.parse(event.data);
                         if (parsed.path === '/event') {
-                            log(`Event: ${parsed.type} - ${parsed.message}`, 'event');
+                            log(`Received (Event): ${parsed.message}`, 'event');
                             if (parsed.type === 'target_connect') {
                                 setSendButtonsEnabled(true);
-                                log(`Target connection established to ${parsed.message.split('to ')[1]}`, 'event');
                             } else if (parsed.type === 'target_connect_failed') {
                                 setSendButtonsEnabled(false);
                                 log(`Target connection failed: ${parsed.message}`, 'event');
                                 alert(`Target connection failed: ${parsed.message}`);
+                            } else if (parsed.path === '/data') {
+                                // Handle incoming data messages (e.g., from targetSocket)
+                                log(`Received (Data): ${JSON.stringify(parsed.data)}`);
                             }
                         } else {
                             log(`Received (JSON): ${JSON.stringify(parsed)}`);
@@ -119,16 +121,12 @@
                     } catch (e) {
                         log(`Received (Text): ${event.data}`);
                     }
-                } else if (event.data instanceof ArrayBuffer) {
-                    const view = new Uint8Array(event.data);
-                    log(`Received (Binary ArrayBuffer): ${Array.from(view).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
-                } else if (event.data instanceof Blob) {
-                    // For simplicity, we'll read Blob as text, but in real scenarios, you might handle it differently
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        log(`Received (Binary Blob - Text): ${reader.result}`);
-                    };
-                    reader.readAsText(event.data);
+                } else {
+                    // If not a string, it's likely a binary message (ArrayBuffer, Blob, etc.)
+                    // Based on the server's expectation, these should not be directly received here
+                    // as raw binary, but rather wrapped in JSON /data messages.
+                    // For now, log as generic binary if it somehow arrives.
+                    log(`Received (Non-Text/Non-JSON): ${event.data.byteLength || 'unknown'} bytes`);
                 }
             };
 
@@ -151,9 +149,11 @@
 
         function sendMessage(type) {
             if (!ws || ws.readyState !== WebSocket.OPEN) {
+                console.log('WebSocket is not connected.');
                 log('WebSocket is not connected.', 'event');
                 return;
             }
+            console.log('WebSocket is connected.');
 
             const message = messageInput.value;
             if (!message) {
@@ -165,11 +165,15 @@
                 ws.send(message);
                 log(`Sent (Text): ${message}`);
             } else if (type === 'binary') {
-                // Convert string to ArrayBuffer for binary sending
+                // Convert string to Uint8Array and wrap in JSON for /data endpoint
                 const encoder = new TextEncoder();
-                const encoded = encoder.encode(message);
-                ws.send(encoded.buffer);
-                log(`Sent (Binary ArrayBuffer): ${Array.from(encoded).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+                const uint8Array = encoder.encode(message);
+                const dataMessage = {
+                    path: '/data',
+                    data: Array.from(uint8Array) // Convert Uint8Array to plain array for JSON serialization
+                };
+                ws.send(JSON.stringify(dataMessage));
+                log(`Sent (Binary as JSON /data): ${JSON.stringify(dataMessage)}`);
             }
             messageInput.value = ''; // Clear input after sending
         }
