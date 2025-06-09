@@ -6,7 +6,9 @@
     "node": "22.x"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "serve-test": "http-server tests -p 8080"
   },
   "repository": {
     "type": "git",
@@ -23,5 +25,8 @@
   "dependencies": {
     "winston": "^3.17.0",
     "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
   }
 }

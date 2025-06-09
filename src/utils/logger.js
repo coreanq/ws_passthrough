@@ -23,14 +23,6 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'websocket-passthrough-server' },
   transports: [
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize({ all: true }), // 콘솔에 색상 적용
-        winston.format.printf(
-          info => `${info.timestamp} ${info.level}: ${info.message} ${info.meta ? JSON.stringify(info.meta) : ''}`
-        )
-      )
-    }),
     new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
     new winston.transports.File({ filename: 'logs/combined.log' })
   ]

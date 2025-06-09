@@ -131,7 +131,7 @@ wss.on('connection', (ws, req) => {
           ws.send(JSON.stringify({ status: 'error', message: 'Target connection not established for JSON data.' }));
         }
       } else if (parsedMessage.path === '/event') {
-        logger.warn(`2`);
+        logger.warn(`event on`, parsedMessage.type, parsedMessage.message);
         serverEvents.on('serverEvent', clientEventHandler);
         ws.send(JSON.stringify({ status: 'success', message: 'Subscribed to server events.' }));
       } else {

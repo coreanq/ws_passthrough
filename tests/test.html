@@ -100,6 +100,7 @@
             };
 
             ws.onmessage = (event) => {
+                console.log('WebSocket 수신:', event);
                 if (typeof event.data === 'string') {
                     try {
                         const parsed = JSON.parse(event.data);
@@ -148,12 +149,13 @@
         }
 
         function sendMessage(type) {
+            console.log('Send message: ' + type);
+
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 console.log('WebSocket is not connected.');
                 log('WebSocket is not connected.', 'event');
                 return;
             }
-            console.log('WebSocket is connected.');
 
             const message = messageInput.value;
             if (!message) {
@@ -179,8 +181,10 @@
         }
 
         function setSendButtonsEnabled(enabled) {
-            document.getElementById('sendTextButton').disabled = !enabled;
-            document.getElementById('sendBinaryButton').disabled = !enabled;
+            const buttons = document.querySelectorAll('#sendMessagePanel button');
+            buttons.forEach(button => {
+                button.disabled = !enabled;
+            });
         }
 
         // 초기 로드 시 메시지 전송 버튼 비활성화
