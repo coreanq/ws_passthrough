@@ -2,6 +2,7 @@
   "name": "ws_passthrough",
   "version": "1.0.0",
   "main": "src/index.js",
+  "type": "module",
   "engines": {
     "node": "22.x"
   },
@@ -22,11 +23,12 @@
   "homepage": "https://github.com/coreanq/ws_passthrough#readme",
   "description": "",
   "dependencies": {
+    "net": "^1.0.2",
     "winston": "^3.17.0",
     "ws": "^8.18.2"
   },
   "devDependencies": {
-    "mocha": "^10.2.0",
-    "chai": "^4.3.10"
+    "chai": "^4.3.10",
+    "mocha": "^10.2.0"
   }
 }

@@ -1,12 +1,12 @@
 // src/index.js
-const WebSocket = require('ws');
-const TargetConnectionService = require('./services/targetConnectionService');
-const EventEmitter = require('events');
-const ConnectionManager = require('./services/ConnectionManager');
-const PerformanceMonitor = require('./services/PerformanceMonitor');
-const logger = require('./utils/logger');
+import { WebSocket, WebSocketServer } from 'ws';
+import TargetConnectionService from './services/targetConnectionService.js';
+import EventEmitter from 'events';
+import ConnectionManager from './services/ConnectionManager.js';
+import PerformanceMonitor from './services/PerformanceMonitor.js';
+import logger from './utils/logger.js';
 
-const wss = new WebSocket.Server({ port: 8080 });
+const wss = new WebSocketServer({ port: 8080 });
 
 const serverEvents = new EventEmitter();
 const connectionManager = new ConnectionManager(serverEvents);

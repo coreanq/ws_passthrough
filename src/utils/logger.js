@@ -1,5 +1,5 @@
 // src/utils/logger.js
-const winston = require('winston');
+import * as winston from 'winston';
 
 // Dark Mode 를 고려해서 색상 설정이 되어야 한다.
 // winston.format.colorize()는 콘솔 출력에 색상을 추가합니다.
@@ -40,4 +40,4 @@ if (process.env.NODE_ENV !== 'production') {
   }));
 }
 
-module.exports = logger;
+export default logger;

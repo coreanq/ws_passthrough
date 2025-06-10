@@ -1,5 +1,5 @@
 // dummyTcpEchoServer.js
-const net = require('net');
+import net from 'net';
 const PORT = process.argv[2] || 3001; // 명령줄 인수로 포트 번호 설정, 없으면 3001
 
 const server = net.createServer(socket => {

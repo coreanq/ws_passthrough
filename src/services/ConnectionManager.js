@@ -1,7 +1,7 @@
 // src/services/ConnectionManager.js
-const WebSocket = require('ws');
-const EventEmitter = require('events');
-const logger = require('../utils/logger'); // logger 추가
+import WebSocket from 'ws';
+import EventEmitter from 'events';
+import logger from '../utils/logger.js'; // logger 추가
 
 class ConnectionManager {
   constructor(serverEvents) {
@@ -93,4 +93,4 @@ class ConnectionManager {
   }
 }
 
-module.exports = ConnectionManager;
+export default ConnectionManager;

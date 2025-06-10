@@ -1,6 +1,6 @@
 // src/services/targetConnectionService.js
-const net = require('net');
-const logger = require('../utils/logger');
+import net from 'net';
+import logger from '../utils/logger.js';
 
 class TargetConnectionService {
   constructor(targetIp, targetPort, options = {}) {
@@ -100,4 +100,4 @@ class TargetConnectionService {
   }
 }
 
-module.exports = TargetConnectionService;
+export default TargetConnectionService;

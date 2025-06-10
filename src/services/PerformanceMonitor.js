@@ -1,5 +1,5 @@
 // src/services/PerformanceMonitor.js
-const logger = require('../utils/logger'); // logger 추가
+import logger from '../utils/logger.js'; // logger 추가
 
 class PerformanceMonitor {
   constructor(interval = 60000) { // 기본 60초
@@ -79,4 +79,4 @@ class PerformanceMonitor {
   }
 }
 
-module.exports = PerformanceMonitor;
+export default PerformanceMonitor;
