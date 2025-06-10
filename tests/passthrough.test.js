@@ -37,13 +37,13 @@ describe('WebSocket passthrough integration', function() {
     tcpServer = spawn('node', [echoPath, PORT]);
 
     tcpServer.stdout.on('data', data => {
-      console.log(`TCP Server stdout: ${data}`);
+      console.log(`TCP Server:\n${data}`);
     });
     tcpServer.stderr.on('data', data => {
-      console.error(`TCP Server stderr: ${data}`);
+      console.error(`TCP Server:\n${data}`);
     });
     tcpServer.on('error', err => {
-      console.error('TCP Server spawn error:', err);
+      console.error('TCP Server:\n', err);
       done(err);
     });
 
@@ -53,17 +53,17 @@ describe('WebSocket passthrough integration', function() {
     let wsServerReady = false;
     wsServer.stdout.on('data', data => {
       const output = data.toString();
-      console.log(`WS Server stdout: ${output}`);
+      console.log(`WS Server:\n${output}`);
       if (output.includes('WebSocket 서버가 8080 포트에서 실행 중입니다.') && !wsServerReady) {
         wsServerReady = true;
         done(); // WS server is ready, proceed with tests
       }
     });
     wsServer.stderr.on('data', data => {
-      console.error(`WS Server stderr: ${data}`);
+      console.error(`WS Server:\n${data}`);
     });
     wsServer.on('error', err => {
-      console.error('WS Server spawn error:', err);
+      console.error('WS Server:\n', err);
       done(err);
     });
 

@@ -78,14 +78,14 @@ wss.on('connection', (ws, req) => {
       logger.warn(`1 parsedMessage: ${JSON.stringify(parsedMessage)}`);
 
       if (parsedMessage.path === '/config') {
-        logger.debug('Received /config message. Processing connection setup.');
         const { targetIp, targetPort } = parsedMessage.data;
-        logger.info(`Target IP: ${targetIp}, Target Port: ${targetPort}`);
 
         if (!targetIp || !targetPort || typeof targetPort !== 'number' || targetPort <= 0 || targetPort > 65535) {
           ws.send(JSON.stringify({ status: 'error', message: 'Invalid target IP or port.' }));
           return;
         }
+
+        logger.debug(`Received /config message. Processing connection setup. IP: ${targetIp}, Port: ${targetPort}`);
 
         if (targetConnectionService) {
           targetConnectionService.disconnect();

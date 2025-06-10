@@ -16,7 +16,7 @@ const customColors = {
 winston.addColors(customColors);
 
 const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info', // 환경 변수 또는 기본값 'info'
+  level: process.env.LOG_LEVEL || 'silly',
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.json() // 구조화된 JSON 로그
