@@ -1,3 +1,4 @@
+```mermaid
 sequenceDiagram
     WebSocketClient_html->>WebSocketServer: connect
     WebSocketClient_html->>WebSocketServer: /config
@@ -7,3 +8,4 @@ sequenceDiagram
     dummyTcpEchoServer-->>WebSocketServer: response modbus data
     WebSocketServer-->>WebSocketClient_html: /data (modbus response)
     WebSocketClient_html->>WebSocketServer: /event
+```

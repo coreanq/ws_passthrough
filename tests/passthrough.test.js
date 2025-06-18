@@ -27,6 +27,12 @@ function waitForMessage(client) {
   });
 }
 
+const toHexString = (byteArray) => {
+  return Array.from(byteArray, function(byte) {
+    return ('0' + (byte & 0xFF).toString(16)).slice(-2).toUpperCase();
+  }).join(' ');
+};
+
 describe('WebSocket passthrough integration', function() {
   this.timeout(10000);
   let tcpServer;
@@ -82,28 +88,48 @@ describe('WebSocket passthrough integration', function() {
   });
 
   it('echos data sent through /config and /data', async () => {
-    const client = new WebSocket(`ws://localhost:${WS_PORT}`);
+    const ws_client = new WebSocket(`ws://localhost:${WS_PORT}`);
 
     // Centralized error handling for the client
-    client.on('error', (err) => {
+    ws_client.on('error', (err) => {
       console.error('WebSocket client error:', err);
       throw err;
     });
 
     try {
-      await waitForOpen(client);
+      await waitForOpen(ws_client);
+      console.log('WS Client: Connected.');
 
-      client.send(JSON.stringify({ path: '/config', data: { targetIp: '127.0.0.1', targetPort: PORT } }));
-      await waitForMessage(client); // Wait for config response
+      const configMessage = { path: '/config', data: { targetIp: '127.0.0.1', targetPort: PORT } };
+      const configMessageString = JSON.stringify(configMessage);
+      console.log(`WS Client: Sending config: ${configMessageString}`);
+      ws_client.send(configMessageString);
+      
+      const configResponse = await waitForMessage(ws_client); // Wait for config response
+      console.log(`WS Client: Received config response: ${configResponse.toString()}`);
 
-      client.send(JSON.stringify({ path: '/data', data: 'hello' }));
-      const msg = await waitForMessage(client); // Wait for data echo
+      const testDataString = 'hello';
+      const testDataUint8Array = Buffer.from(testDataString);
+      const testDataAsArray = Array.from(testDataUint8Array);
+      const dataMessage = { path: '/data', data: testDataAsArray };
+      const dataMessageString = JSON.stringify(dataMessage);
 
-      expect(msg.toString()).to.equal('hello');
-      client.close();
+      console.log(`WS Client: Sending data (HexString): ${toHexString(testDataUint8Array)}`);
+      ws_client.send(dataMessageString);
+      
+      const msg = await waitForMessage(ws_client); // Wait for data echo
+
+      const expectedHex = toHexString(testDataUint8Array);
+      const receivedHex = toHexString(msg);
+      
+      console.log(`WS Client: Received data (HexString): ${receivedHex}`);
+      
+      expect(receivedHex).to.equal(expectedHex);
+      ws_client.close();
+      console.log('WS Client: Connection closed.');
     } catch (error) {
       console.error('Test failed due to WebSocket operation:', error);
-      client.close(); // Ensure client is closed on error
+      ws_client.close(); // Ensure client is closed on error
       throw error; // Re-throw to ensure the test fails
     }
   });

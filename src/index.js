@@ -6,6 +6,14 @@ import ConnectionManager from './services/ConnectionManager.js';
 import PerformanceMonitor from './services/PerformanceMonitor.js';
 import logger from './utils/logger.js';
 
+// Helper function to convert Buffer/Uint8Array to Hex String
+const toHexString = (byteArray) => {
+  if (!byteArray) return 'null';
+  return Array.from(byteArray, function(byte) {
+    return ('0' + (byte & 0xFF).toString(16)).slice(-2).toUpperCase();
+  }).join(' ');
+};
+
 const wss = new WebSocketServer({ port: 8080 });
 
 const serverEvents = new EventEmitter();
@@ -14,12 +22,13 @@ const performanceMonitor = new PerformanceMonitor();
 
 function setupTargetSocketListeners(ws, socket) {
   socket.on('data', data => {
-    logger.debug(`Target 수신: ${data}`);
+    // TCP socket data is always a Buffer, which is a Uint8Array.
+    logger.debug(`recved from TCP: ${toHexString(data)}`);
     if (ws.readyState === WebSocket.OPEN) {
-      const canWrite = ws.send(data); // WebSocket으로 데이터 전송
+      const canWrite = ws.send(data); // Send Buffer directly to WebSocket
       if (!canWrite) {
-        // WebSocket 백프레셔 처리 (선택 사항: WebSocket은 TCP보다 백프레셔 처리가 덜 필요할 수 있음)
-        // 여기서는 간단히 로그만 남김
+        // WebSocket backpressure handling (optional: WebSocket may require less backpressure handling than TCP)
+        // For now, simply log
         logger.warn('WebSocket backpressure detected on send.');
       }
       performanceMonitor.recordMessage(data.length, 0);
@@ -27,7 +36,7 @@ function setupTargetSocketListeners(ws, socket) {
   });
 
   socket.on('end', () => {
-    logger.info('Target 연결이 끊어졌습니다.');
+    logger.info('TCP 연결이 끊어졌습니다.');
     if (ws.readyState === WebSocket.OPEN) {
       const eventMessage = { path: '/event', type: 'target_disconnect', message: 'Target connection closed.' };
       ws.send(JSON.stringify(eventMessage));
@@ -37,7 +46,7 @@ function setupTargetSocketListeners(ws, socket) {
   });
 
   socket.on('error', error => {
-    logger.error('Target 소켓 오류 발생:', error);
+    logger.error('TCP 소켓 오류 발생:', error);
     if (ws.readyState === WebSocket.OPEN) {
       const eventMessage = { path: '/event', type: 'target_error', message: `Target connection error: ${error.message}` };
       ws.send(JSON.stringify(eventMessage));
@@ -69,13 +78,13 @@ wss.on('connection', (ws, req) => {
   };
 
   ws.on('message', message => {
-    logger.warn(`WebSocket 수신: ${message}`);
+    // Check if the message is binary (Buffer) or text (string)
+    const logMessage = message.toString();
+    logger.warn(`WebSocket 수신: ${logMessage}`);
 
     let parsedMessage;
     try {
       parsedMessage = JSON.parse(message);
-      // If parsing successful, it's a JSON message
-      logger.warn(`1 parsedMessage: ${JSON.stringify(parsedMessage)}`);
 
       if (parsedMessage.path === '/config') {
         const { targetIp, targetPort } = parsedMessage.data;
@@ -116,14 +125,15 @@ wss.on('connection', (ws, req) => {
 
       } else if (parsedMessage.path === '/data') {
         // This path is for JSON messages containing data to be sent to targetSocket
+        // Expecting parsedMessage.data to be an array of numbers (Uint8Array converted to array)
         if (targetSocket && !targetSocket.destroyed) {
-          // Assuming parsedMessage.data is a Uint8Array or similar that needs to be converted to a Buffer
           const dataBuffer = Buffer.from(parsedMessage.data);
+          logger.debug(`Sending data to TCP: ${toHexString(dataBuffer)}`);
           const canWrite = targetSocket.write(dataBuffer);
           if (!canWrite) {
-            ws.pause(); // WebSocket 수신을 일시 중지
+            ws.pause(); // Pause WebSocket reception
             targetSocket.once('drain', () => {
-              ws.resume(); // TCP 소켓이 drain되면 WebSocket 수신 재개
+              ws.resume(); // Resume WebSocket reception when TCP socket drains
             });
           }
           performanceMonitor.recordMessage(dataBuffer.length, 0);
@@ -139,16 +149,18 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({ status: 'error', message: 'Unknown path.' }));
       }
     } catch (e) {
-      // If not JSON, treat as raw data (assumed to be Uint8Array or similar)
-      logger.debug(`WebSocket 수신 (Raw Data - not JSON): ${message.toString()}`);
+      // If not JSON, treat as raw data (assumed to be Uint8Array or similar received directly as Buffer)
+      const logRawData = Buffer.isBuffer(message) ? toHexString(message) : message.toString();
+      logger.debug(`WebSocket 수신 (Raw Data - not JSON): ${logRawData}`);
       if (targetSocket && !targetSocket.destroyed) {
-        // Assuming 'message' is a Uint8Array or can be directly used to create a Buffer
-        const dataToWrite = Buffer.from(message); 
+        // Assuming 'message' is a Buffer (Uint8Array) when it's raw binary data
+        const dataToWrite = Buffer.isBuffer(message) ? message : Buffer.from(message.toString());
+        logger.debug(`Sending raw data to target: ${toHexString(dataToWrite)}`);
         const canWrite = targetSocket.write(dataToWrite);
         if (!canWrite) {
-          ws.pause(); // WebSocket 수신을 일시 중지
+          ws.pause(); // Pause WebSocket reception
           targetSocket.once('drain', () => {
-            ws.resume(); // TCP 소켓이 drain되면 WebSocket 수신 재개
+            ws.resume(); // Resume WebSocket reception when TCP socket drains
           });
         }
         performanceMonitor.recordMessage(dataToWrite.length, 0);
@@ -157,25 +169,6 @@ wss.on('connection', (ws, req) => {
       }
     }
   });
-
-  targetConnectionService = new TargetConnectionService(initialTargetIp, initialTargetPort, { reconnectInterval: 3000, maxRetries: 10 });
-  targetConnectionService.connect()
-    .then(socket => {
-      targetSocket = socket;
-      connectionManager.registerTargetConnection(connectionId, targetSocket, initialTargetIp, initialTargetPort);
-      connectionManager.createConnectionPair(connectionId, connectionId);
-      setupTargetSocketListeners(ws, targetSocket);
-      serverEvents.emit('serverEvent', { connectionId: ws.connectionId, path: '/event', type: 'initial_target_connect', message: `Initial connection to ${initialTargetIp}:${initialTargetPort}` });
-    })
-    .catch(error => {
-      logger.error('초기 Target 연결 실패:', error);
-      if (ws.readyState === WebSocket.OPEN) {
-        const eventMessage = { path: '/event', type: 'initial_target_connect_failed', message: `Initial Target connection failed: ${error.message}` };
-        ws.send(JSON.stringify(eventMessage));
-        serverEvents.emit('serverEvent', { connectionId: ws.connectionId, ...eventMessage });
-        connectionManager.handleConnectionError(ws.connectionId, error, 'initial_target_connect_failed');
-      }
-    });
 
   ws.on('close', () => {
     logger.info('클라이언트 연결이 끊어졌습니다.');
