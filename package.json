@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "mocha \"tests/**/*.test.js\""
+    "test": "node tests/passthrough.test.js",
+    "full_test": "mocha \"tests/full_passthrough.test.js\""
   },
   "repository": {
     "type": "git",

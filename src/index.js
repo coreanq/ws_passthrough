@@ -80,7 +80,7 @@ wss.on('connection', (ws, req) => {
   ws.on('message', message => {
     // Check if the message is binary (Buffer) or text (string)
     const logMessage = message.toString();
-    logger.warn(`WebSocket 수신: ${logMessage}`);
+    logger.warn(`WebSocket 수신: ${message}`);
 
     let parsedMessage;
     try {
